@@ -17,6 +17,22 @@ Two main clinical experiments (ablations) are supported:
 1. **Ablation 1 (Age-Aware)**: Uses `bridge.xlsx` (400 Normal including 41 `non_significant` mild age-expected cases vs 456 Abnormal). Patient age is normalized and concatenated to the patient MRI embedding before the classification head.
 2. **Ablation 2 (Age-Independent)**: Uses `bridge_modified.xlsx` (359 Normal vs 497 Abnormal, where all 41 `non_significant` cases are relabeled Abnormal). Uses image data only (no age feature), stratified patient-level splitting, and class-imbalance weighting.
 
+### 🏆 Model Checkpoints & Benchmark Performance
+
+#### 🌟 v2 Models (>750 Training Samples, Evaluated on `test_data_mri1` 130 Patients)
+- **Age-Aware v2** (`checkpoints/best_module1_age_aware_v2.pt`):
+  - **Test ROC-AUC**: **0.9045** | **Test Accuracy**: **82.31%** | **Balanced Acc**: **82.97%**
+  - **Sensitivity**: **78.67%** | **Specificity**: **87.27%** | **F1 Score**: **0.8369**
+  - **Validation ROC-AUC**: **0.9037** | **Val Accuracy**: **83.00%**
+- **Age-Independent v2** (`checkpoints/best_module1_age_independent_v2.pt`):
+  - **Test ROC-AUC**: **0.9336** | **Test Accuracy**: **84.62%** | **Balanced Acc**: **83.27%**
+  - **Sensitivity**: **92.00%** | **Specificity**: **74.55%** | **F1 Score**: **0.8734**
+  - **Validation ROC-AUC**: **0.9208** | **Val Accuracy**: **84.00%**
+
+#### 📌 v1 Baseline Models (70/15/15 BrainGen Cohort Split)
+- **Age-Aware v1** (`checkpoints/best_module1_age_aware.pt`): Val ROC-AUC: **0.8566** | Val Acc: **76.0%** | Sens: **77.9%** | Spec: **73.8%**
+- **Age-Independent v1** (`checkpoints/best_module1_age_independent.pt`): Val ROC-AUC: **0.8711** | Val Acc: **70.3%** | Sens: **52.7%** | Spec: **94.4%**
+
 ---
 
 ## 🚀 Quick Start Guide
@@ -81,14 +97,15 @@ python -m src.verify_dataset
 # Preprocess DICOMs & Cache DINOv2 Features
 python -m src.preprocess
 
-# Train Age-Aware Model (Ablation 1)
-python -m src.train --ablation age_aware
+# Train Age-Aware Model (v2 split: >750 train, rest val, test_data_mri1 test)
+python -m src.train --ablation age_aware --version v2
 
-# Train Age-Independent Model (Ablation 2)
-python -m src.train --ablation age_independent
+# Train Age-Independent Model (v2 split)
+python -m src.train --ablation age_independent --version v2
 
-# Evaluate Trained Models
-python -m src.evaluate --ablation age_aware
+# Evaluate Trained Models on Test Cohort
+python -m src.evaluate --ablation age_aware --version v2
+python -m src.evaluate --ablation age_independent --version v2
 ```
 
 ---

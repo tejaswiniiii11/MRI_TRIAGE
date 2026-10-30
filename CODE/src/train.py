@@ -75,6 +75,12 @@ def main():
     parser.add_argument("--epochs", type=int, default=Config.EPOCHS)
     parser.add_argument("--batch_size", type=int, default=Config.BATCH_SIZE)
     parser.add_argument("--lr", type=float, default=Config.LEARNING_RATE)
+    parser.add_argument("--version", type=str, choices=["v1", "v2"], default="v2",
+                        help="Dataset split version (v1: 70/15/15; v2: >750 train, rest val, test_data_mri1 test)")
+    parser.add_argument("--train_count", type=int, default=Config.TRAIN_COUNT_V2,
+                        help="Number of training samples from BrainGen (default 756 > 750)")
+    parser.add_argument("--save_suffix", type=str, default=None,
+                        help="Custom suffix for saved checkpoint (default '_v2' for v2 split)")
     args = parser.parse_args()
 
     set_seed(Config.SEED)
@@ -83,10 +89,21 @@ def main():
     is_age_aware = (args.ablation == "age_aware")
     excel_path = Config.BRIDGE_EXCEL if is_age_aware else Config.BRIDGE_MODIFIED_EXCEL
     
-    logger.info(f"Starting Training for Module 1 | Ablation: {args.ablation.upper()} | Pooling: {args.pooling.upper()}")
+    suffix = args.save_suffix if args.save_suffix is not None else ("_v2" if args.version == "v2" else "")
+    ckpt_name = f"best_module1_{args.ablation}{suffix}.pt"
+    best_ckpt_path = os.path.join(Config.CHECKPOINTS_DIR, ckpt_name)
+
+    logger.info(f"Starting Training for Module 1 | Ablation: {args.ablation.upper()} | Version: {args.version.upper()} | Pooling: {args.pooling.upper()}")
+    logger.info(f"Target Checkpoint: {best_ckpt_path}")
     
     # Create patient splits
-    train_df, val_df, test_df = create_patient_splits(excel_path, is_age_aware=is_age_aware, seed=Config.SEED)
+    train_df, val_df, test_df = create_patient_splits(
+        excel_path, 
+        is_age_aware=is_age_aware, 
+        seed=Config.SEED, 
+        version=args.version, 
+        train_count=args.train_count
+    )
     
     # Create datasets and dataloaders
     train_dataset = PatientEmbeddingDataset(train_df, is_age_aware=is_age_aware)
@@ -111,7 +128,6 @@ def main():
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
     
     best_val_auc = 0.0
-    best_ckpt_path = os.path.join(Config.CHECKPOINTS_DIR, f"best_module1_{args.ablation}.pt")
     patience_counter = 0
     
     for epoch in range(1, args.epochs + 1):
@@ -134,9 +150,13 @@ def main():
                 'optimizer_state_dict': optimizer.state_dict(),
                 'val_metrics': val_metrics,
                 'ablation': args.ablation,
+                'version': args.version,
                 'pooling': args.pooling,
                 'is_age_aware': is_age_aware,
                 'embedding_dim': Config.EMBEDDING_DIM,
+                'train_count': len(train_df),
+                'val_count': len(val_df),
+                'test_count': len(test_df),
                 'age_mean': train_df['Age'].mean() if ('Age' in train_df.columns and is_age_aware) else None,
                 'age_std': train_df['Age'].std() if ('Age' in train_df.columns and is_age_aware) else None,
             }
@@ -148,22 +168,39 @@ def main():
                 logger.info(f"Early stopping triggered after {epoch} epochs.")
                 break
                 
-    # Final evaluation on test set
-    logger.info("Evaluating Best Checkpoint on Unseen Test Partition...")
+    # Final evaluation on test set and val set
+    logger.info("Evaluating Best Checkpoint...")
     checkpoint = torch.load(best_ckpt_path)
     model.load_state_dict(checkpoint['model_state_dict'])
+    val_final_metrics = evaluate_epoch(model, val_loader, criterion, Config.DEVICE)
     test_metrics = evaluate_epoch(model, test_loader, criterion, Config.DEVICE)
     
-    logger.info("================ FINAL TEST RESULTS ================")
-    logger.info(f"Ablation Strategy:  {args.ablation.upper()}")
-    logger.info(f"Accuracy:           {test_metrics['accuracy']:.4f}")
-    logger.info(f"Balanced Accuracy:  {test_metrics['balanced_accuracy']:.4f}")
-    logger.info(f"Sensitivity:        {test_metrics['sensitivity']:.4f}")
-    logger.info(f"Specificity:        {test_metrics['specificity']:.4f}")
-    logger.info(f"F1 Score:           {test_metrics['f1_score']:.4f}")
-    logger.info(f"ROC-AUC:            {test_metrics['roc_auc']:.4f}")
-    logger.info(f"Confusion Matrix:   {test_metrics['confusion_matrix']}")
-    logger.info("====================================================")
+    # Store test metrics into checkpoint
+    checkpoint['test_metrics'] = test_metrics
+    checkpoint['val_final_metrics'] = val_final_metrics
+    torch.save(checkpoint, best_ckpt_path)
+
+    logger.info("================ VALIDATION (REST) RESULTS ================")
+    logger.info(f"Validation Cohort Count: {len(val_df)}")
+    logger.info(f"Val ROC-AUC:             {val_final_metrics['roc_auc']:.4f}")
+    logger.info(f"Val Accuracy:            {val_final_metrics['accuracy']:.4f}")
+    logger.info(f"Val Balanced Accuracy:   {val_final_metrics['balanced_accuracy']:.4f}")
+    logger.info(f"Val Sensitivity:         {val_final_metrics['sensitivity']:.4f}")
+    logger.info(f"Val Specificity:         {val_final_metrics['specificity']:.4f}")
+    logger.info(f"Val F1 Score:            {val_final_metrics['f1_score']:.4f}")
+    logger.info(f"Val Confusion Matrix:    {val_final_metrics['confusion_matrix']}")
+
+    logger.info("================ FINAL TEST RESULTS (TEST_DATA_MRI1) ================")
+    logger.info(f"Ablation Strategy:       {args.ablation.upper()} ({args.version.upper()})")
+    logger.info(f"Test Cohort Count:       {len(test_df)}")
+    logger.info(f"Accuracy:                {test_metrics['accuracy']:.4f}")
+    logger.info(f"Balanced Accuracy:       {test_metrics['balanced_accuracy']:.4f}")
+    logger.info(f"Sensitivity:             {test_metrics['sensitivity']:.4f}")
+    logger.info(f"Specificity:             {test_metrics['specificity']:.4f}")
+    logger.info(f"F1 Score:                {test_metrics['f1_score']:.4f}")
+    logger.info(f"ROC-AUC:                 {test_metrics['roc_auc']:.4f}")
+    logger.info(f"Confusion Matrix:        {test_metrics['confusion_matrix']}")
+    logger.info("=====================================================================")
 
 if __name__ == "__main__":
     main()

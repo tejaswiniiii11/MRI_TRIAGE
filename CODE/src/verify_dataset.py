@@ -96,6 +96,20 @@ def verify():
     logger.info(f"✓ StudyInstanceUID mismatches: {uid_mismatches}")
     logger.info(f"✓ Series descriptions found: {list(series_descs)}")
 
+    # Verify Test Dataset if available
+    if os.path.exists(Config.TEST_GROUNDTRUTH_EXCEL) and os.path.exists(Config.TEST_DATASET_DIR):
+        logger.info("\n--- Verifying Test Cohort (datasets/test_data_mri1) ---")
+        df_test = pd.read_excel(Config.TEST_GROUNDTRUTH_EXCEL)
+        pid_col = 'ANON_PatientID' if 'ANON_PatientID' in df_test.columns else 'ANON-PatientID'
+        test_patients = list(df_test[pid_col])
+        test_dir_folders = set(os.listdir(Config.TEST_DATASET_DIR))
+        missing_test = [pid for pid in test_patients if pid not in test_dir_folders]
+        if missing_test:
+            logger.error(f"Missing {len(missing_test)} patient folders in test dataset directory!")
+            return False
+        logger.info(f"✓ All {len(test_patients)} test patients found in {Config.TEST_DATASET_DIR}.")
+        logger.info(f"✓ Test class distribution: {df_test['Classification'].value_counts().to_dict()}")
+
     logger.info("==========================================")
     logger.info("VERIFICATION PASSED! Dataset is READY.")
     logger.info("==========================================")

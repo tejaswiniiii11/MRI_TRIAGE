@@ -54,61 +54,112 @@ class PatientEmbeddingDataset(Dataset):
         return sample
 
 
-def create_patient_splits(excel_path, is_age_aware=True, seed=Config.SEED):
+def create_patient_splits(excel_path, is_age_aware=True, seed=Config.SEED, version="v2", train_count=Config.TRAIN_COUNT_V2, test_excel_path=None):
     """
     Creates patient-level train, validation, and test splits.
     Guarantees no slice or patient leakage across split partitions.
-    For Age-Aware (Ablation 1): Enforces ~34 non_significant cases in train and ~7 in val.
+    
+    version="v1": Legacy 70/15/15 split on BrainGen cohort.
+    version="v2": Enhanced split:
+      - Train: train_count (> 750, default 756) from BrainGen cohort.
+      - Val: The remaining cases from BrainGen cohort (856 - train_count = 100).
+      - Test: The new unseen cohort from test_groundtruth.xlsx / test_data_mri1 (130 cases).
     """
     df = pd.read_excel(excel_path)
     np.random.seed(seed)
     
     # 1. Age normalization (computed using training statistics later, initializing raw age)
     df['normalized_age'] = 0.0
+    if 'Classification' in df.columns:
+        df['Classification'] = df['Classification'].astype(str).str.upper().str.strip()
     
-    if is_age_aware and 'Significance' in df.columns:
-        # Separate non_significant cases for controlled allocation
-        non_sig_df = df[df['Significance'] == 'non_significant'].sample(frac=1, random_state=seed)
-        other_df = df[df['Significance'] != 'non_significant'].sample(frac=1, random_state=seed)
-        
-        # Split 34 train, 7 val from the 41 non_significant cases
-        non_sig_train = non_sig_df.iloc[:Config.NON_SIG_TRAIN_COUNT]
-        non_sig_val = non_sig_df.iloc[Config.NON_SIG_TRAIN_COUNT:]
-        
-        # Stratified split for the remaining 815 cases
-        from sklearn.model_selection import train_test_split
-        train_other, val_test_other = train_test_split(
-            other_df, 
-            test_size=(Config.VAL_RATIO + Config.TEST_RATIO),
-            stratify=other_df['Classification'],
-            random_state=seed
-        )
-        val_other, test_other = train_test_split(
-            val_test_other,
-            test_size=0.5,
-            stratify=val_test_other['Classification'],
-            random_state=seed
-        )
-        
-        train_df = pd.concat([train_other, non_sig_train]).sample(frac=1, random_state=seed).reset_index(drop=True)
-        val_df = pd.concat([val_other, non_sig_val]).sample(frac=1, random_state=seed).reset_index(drop=True)
-        test_df = test_other.sample(frac=1, random_state=seed).reset_index(drop=True)
-        
+    if version == "v2":
+        test_file = test_excel_path or Config.TEST_GROUNDTRUTH_EXCEL
+        test_df = pd.read_excel(test_file)
+        test_df = test_df.rename(columns={
+            'ANON-PatientID': 'ANON_PatientID',
+            'ANON-StudyUID': 'ANON_StudyInstanceUID'
+        })
+        test_df['Classification'] = test_df['Classification'].astype(str).str.upper().str.strip()
+        test_df['normalized_age'] = 0.0
+
+        total_cases = len(df)
+        val_count = total_cases - train_count
+
+        if is_age_aware and 'Significance' in df.columns:
+            non_sig_df = df[df['Significance'] == 'non_significant'].sample(frac=1, random_state=seed)
+            other_df = df[df['Significance'] != 'non_significant'].sample(frac=1, random_state=seed)
+
+            # Proportional split of the 41 non_significant cases (36 train, 5 val)
+            non_sig_train_n = int(round(len(non_sig_df) * (train_count / total_cases)))
+            non_sig_train = non_sig_df.iloc[:non_sig_train_n]
+            non_sig_val = non_sig_df.iloc[non_sig_train_n:]
+
+            other_train_n = train_count - len(non_sig_train)
+            from sklearn.model_selection import train_test_split
+            train_other, val_other = train_test_split(
+                other_df,
+                train_size=other_train_n,
+                stratify=other_df['Classification'],
+                random_state=seed
+            )
+            train_df = pd.concat([train_other, non_sig_train]).sample(frac=1, random_state=seed).reset_index(drop=True)
+            val_df = pd.concat([val_other, non_sig_val]).sample(frac=1, random_state=seed).reset_index(drop=True)
+        else:
+            from sklearn.model_selection import train_test_split
+            train_df, val_df = train_test_split(
+                df,
+                train_size=train_count,
+                stratify=df['Classification'],
+                random_state=seed
+            )
+            train_df = train_df.sample(frac=1, random_state=seed).reset_index(drop=True)
+            val_df = val_df.sample(frac=1, random_state=seed).reset_index(drop=True)
+
     else:
-        # Standard stratified patient-level split for Ablation 2
-        from sklearn.model_selection import train_test_split
-        train_df, val_test_df = train_test_split(
-            df,
-            test_size=(Config.VAL_RATIO + Config.TEST_RATIO),
-            stratify=df['Classification'],
-            random_state=seed
-        )
-        val_df, test_df = train_test_split(
-            val_test_df,
-            test_size=0.5,
-            stratify=val_test_df['Classification'],
-            random_state=seed
-        )
+        # Standard stratified patient-level split for Ablation 2 (v1)
+        if is_age_aware and 'Significance' in df.columns:
+            # Separate non_significant cases for controlled allocation
+            non_sig_df = df[df['Significance'] == 'non_significant'].sample(frac=1, random_state=seed)
+            other_df = df[df['Significance'] != 'non_significant'].sample(frac=1, random_state=seed)
+            
+            # Split 34 train, 7 val from the 41 non_significant cases
+            non_sig_train = non_sig_df.iloc[:Config.NON_SIG_TRAIN_COUNT]
+            non_sig_val = non_sig_df.iloc[Config.NON_SIG_TRAIN_COUNT:]
+            
+            # Stratified split for the remaining 815 cases
+            from sklearn.model_selection import train_test_split
+            train_other, val_test_other = train_test_split(
+                other_df, 
+                test_size=(Config.VAL_RATIO + Config.TEST_RATIO),
+                stratify=other_df['Classification'],
+                random_state=seed
+            )
+            val_other, test_other = train_test_split(
+                val_test_other,
+                test_size=0.5,
+                stratify=val_test_other['Classification'],
+                random_state=seed
+            )
+            
+            train_df = pd.concat([train_other, non_sig_train]).sample(frac=1, random_state=seed).reset_index(drop=True)
+            val_df = pd.concat([val_other, non_sig_val]).sample(frac=1, random_state=seed).reset_index(drop=True)
+            test_df = test_other.sample(frac=1, random_state=seed).reset_index(drop=True)
+            
+        else:
+            from sklearn.model_selection import train_test_split
+            train_df, val_test_df = train_test_split(
+                df,
+                test_size=(Config.VAL_RATIO + Config.TEST_RATIO),
+                stratify=df['Classification'],
+                random_state=seed
+            )
+            val_df, test_df = train_test_split(
+                val_test_df,
+                test_size=0.5,
+                stratify=val_test_df['Classification'],
+                random_state=seed
+            )
         
     # Calculate age normalization stats STRICTLY from training set
     if 'Age' in df.columns:
@@ -117,9 +168,10 @@ def create_patient_splits(excel_path, is_age_aware=True, seed=Config.SEED):
         
         train_df['normalized_age'] = (train_df['Age'] - age_mean) / age_std
         val_df['normalized_age'] = (val_df['Age'] - age_mean) / age_std
-        test_df['normalized_age'] = (test_df['Age'] - age_mean) / age_std
+        if 'Age' in test_df.columns:
+            test_df['normalized_age'] = (test_df['Age'] - age_mean) / age_std
         
-    logger.info(f"Created Patient Splits (Age-Aware={is_age_aware}):")
+    logger.info(f"Created Patient Splits (Age-Aware={is_age_aware}, Version={version}):")
     logger.info(f"  Train Patients: {len(train_df)} (Normal: {(train_df['Classification']=='NORMAL').sum()}, Abnormal: {(train_df['Classification']=='ABNORMAL').sum()})")
     logger.info(f"  Val Patients:   {len(val_df)} (Normal: {(val_df['Classification']=='NORMAL').sum()}, Abnormal: {(val_df['Classification']=='ABNORMAL').sum()})")
     logger.info(f"  Test Patients:  {len(test_df)} (Normal: {(test_df['Classification']=='NORMAL').sum()}, Abnormal: {(test_df['Classification']=='ABNORMAL').sum()})")

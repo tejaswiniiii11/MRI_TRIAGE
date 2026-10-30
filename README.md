@@ -45,12 +45,21 @@ Raw DICOM Series (17-33 slices)
 
 ## 🏆 Model Checkpoints & Performance
 
-Pre-trained model checkpoint weights are provided in `CODE/checkpoints/`:
+Pre-trained model checkpoint weights are provided in `CODE/checkpoints/` for both the initial **v1** (70/15/15) split and the enhanced **v2** (>750 training images, rest for validation, and `datasets/test_data_mri1` unseen test cohort):
+
+### 🌟 v2 Models (Trained on >750 Images, Evaluated on New Test Cohort)
+
+| Model Checkpoint | Description | Val ROC-AUC | Val Acc | Test ROC-AUC (`test_data_mri1`) | Test Accuracy | Test Sensitivity | Test Specificity |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| `best_module1_age_aware_v2.pt` | Position-aware pooling + normalized age feature | **0.9037** | **83.0%** | **0.9045** | **82.3%** | **78.7%** | **87.3%** |
+| `best_module1_age_independent_v2.pt` | Position-aware pooling on imaging features only | **0.9208** | **84.0%** | **0.9336** | **84.6%** | **92.0%** | **74.5%** |
+
+### 📌 v1 Baseline Models
 
 | Model Checkpoint | Description | Val ROC-AUC | Val Accuracy | Val Sensitivity | Val Specificity |
 | :--- | :--- | :---: | :---: | :---: | :---: |
-| `best_module1_age_aware.pt` | Position-aware pooling + normalized age feature | **0.8566** | **76.0%** | **77.9%** | **73.8%** |
-| `best_module1_age_independent.pt` | Position-aware pooling on imaging features only | **0.8711** | **70.3%** | **52.7%** | **94.4%** |
+| `best_module1_age_aware.pt` | Position-aware pooling + normalized age feature (v1 split) | **0.8566** | **76.0%** | **77.9%** | **73.8%** |
+| `best_module1_age_independent.pt` | Position-aware pooling on imaging features only (v1 split) | **0.8711** | **70.3%** | **52.7%** | **94.4%** |
 
 ---
 
@@ -60,16 +69,18 @@ Pre-trained model checkpoint weights are provided in `CODE/checkpoints/`:
 MRI_TRIAGE/
 ├── CODE/
 │   ├── checkpoints/                     # Saved PyTorch model checkpoint bundles (.pt)
-│   │   ├── best_module1_age_aware.pt
-│   │   └── best_module1_age_independent.pt
+│   │   ├── best_module1_age_aware_v2.pt        # v2 Age-Aware Checkpoint (>750 train)
+│   │   ├── best_module1_age_independent_v2.pt  # v2 Age-Independent Checkpoint (>750 train)
+│   │   ├── best_module1_age_aware.pt           # v1 Baseline Checkpoint
+│   │   └── best_module1_age_independent.pt     # v1 Baseline Checkpoint
 │   ├── src/                             # Core Python package
 │   │   ├── config.py                    # Global configurations & paths
-│   │   ├── dataset.py                   # PyTorch dataset & collate functions
-│   │   ├── evaluate.py                  # Evaluation metrics (ROC-AUC, Sens, Spec)
+│   │   ├── dataset.py                   # PyTorch dataset, v1/v2 splits & collate functions
+│   │   ├── evaluate.py                  # Evaluation metrics (ROC-AUC, Sens, Spec, Conf Matrix)
 │   │   ├── inference.py                 # Single-study end-to-end inference engine
 │   │   ├── models.py                    # Attention pooling & classification heads
 │   │   ├── preprocess.py                # DICOM parsing & DINOv2 feature caching
-│   │   ├── train.py                     # Training loop with early stopping
+│   │   ├── train.py                     # Training loop with early stopping & v1/v2 support
 │   │   ├── utils.py                     # Seeding and logging utilities
 │   │   └── verify_dataset.py            # Cohort integrity & DICOM validator
 │   ├── run_module1_inference.py         # Quick demo script for inference
@@ -77,8 +88,8 @@ MRI_TRIAGE/
 │   ├── docker-compose.yml               # Container orchestrator
 │   └── requirements.txt                 # Python dependencies
 ├── datasets/                            # Local datasets folder (git-ignored)
-│   ├── BrainGen_deidentified/           # DICOM patient folders
-│   └── test_data_mri1/                  # Test set patient studies
+│   ├── BrainGen_deidentified/           # DICOM patient folders (856 patients)
+│   └── test_data_mri1/                  # Test set patient studies (130 patients)
 ├── doc/                                 # Documentation & specifications
 │   ├── module1_technical_details.md     # Detailed pipeline and ablation specifications
 │   ├── Brain_MRI_Module1_Dataset_and_Modeling_Guide.pdf
@@ -86,6 +97,7 @@ MRI_TRIAGE/
 │   └── proj_exp.pdf
 ├── bridge.xlsx                          # Clinical ground truth & labels (Ablation 1)
 ├── bridge_modified.xlsx                 # Re-annotated clinical ground truth (Ablation 2)
+├── test_groundtruth.xlsx                # Ground truth for test_data_mri1 cohort (130 patients)
 ├── .gitignore                           # Repository ignore rules
 └── README.md                            # Main project overview
 ```
@@ -144,13 +156,19 @@ To extract and cache DINOv2 embeddings:
 python -m src.preprocess --batch_size 16
 ```
 
-To train from scratch:
+To train from scratch (v2 split with >750 training images):
 ```bash
-# Age-Aware Model
-python -m src.train --ablation age_aware --epochs 50 --lr 1e-3
+# Age-Aware Model (v2)
+python -m src.train --ablation age_aware --version v2 --epochs 50 --lr 1e-3
 
-# Age-Independent Model
-python -m src.train --ablation age_independent --epochs 50 --lr 1e-3
+# Age-Independent Model (v2)
+python -m src.train --ablation age_independent --version v2 --epochs 50 --lr 1e-3
+```
+
+To evaluate trained models on the test cohort:
+```bash
+python -m src.evaluate --ablation age_aware --version v2
+python -m src.evaluate --ablation age_independent --version v2
 ```
 
 ---

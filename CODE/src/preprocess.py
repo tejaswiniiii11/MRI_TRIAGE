@@ -174,5 +174,31 @@ def run_preprocessing():
         
     logger.info(f"✓ Feature pre-caching complete. Total cached patient files: {cached_count}/{len(patient_ids)}")
 
+    # Also preprocess test cohort if available
+    if os.path.exists(Config.TEST_GROUNDTRUTH_EXCEL) and os.path.exists(Config.TEST_DATASET_DIR):
+        df_test = pd.read_excel(Config.TEST_GROUNDTRUTH_EXCEL)
+        pid_col = 'ANON_PatientID' if 'ANON_PatientID' in df_test.columns else 'ANON-PatientID'
+        test_patient_ids = df_test[pid_col].tolist()
+        logger.info(f"Processing and caching DINOv2 slice embeddings for {len(test_patient_ids)} test cohort patients...")
+        test_cached_count = 0
+        for pid in tqdm(test_patient_ids, desc="Caching Test DINOv2 Embeddings"):
+            save_path = os.path.join(Config.EMBEDDINGS_DIR, f"{pid}.pt")
+            if os.path.exists(save_path):
+                test_cached_count += 1
+                continue
+            p_dir = os.path.join(Config.TEST_DATASET_DIR, pid)
+            slices = load_patient_dicom_slices(p_dir)
+            if not slices:
+                logger.warning(f"No valid DICOM slices found for test patient {pid}")
+                continue
+            embeddings, positions = extract_patient_embeddings(dinov2, slices, device=device)
+            torch.save({
+                'patient_id': pid,
+                'embeddings': embeddings,
+                'positions': positions
+            }, save_path)
+            test_cached_count += 1
+        logger.info(f"✓ Test cohort feature caching complete: {test_cached_count}/{len(test_patient_ids)}")
+
 if __name__ == "__main__":
     run_preprocessing()

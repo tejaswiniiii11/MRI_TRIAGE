@@ -88,10 +88,29 @@ Splits are strictly partitioned at the **patient level** (all slices for any sin
 
 ---
 
-### 5. Checkpoint Status
+### 5. Enhanced v2 Split (>750 Images for Training + External Test Cohort)
 
-Both primary models have already completed training and are saved in [`CODE/checkpoints/`](file:///c:/Users/Akash/OneDrive/Desktop/Project/MRI%20Stroke%20(Bro)/CODE/checkpoints):
-1. **Age-Aware Best Checkpoint** ([`best_module1_age_aware.pt`](file:///c:/Users/Akash/OneDrive/Desktop/Project/MRI%20Stroke%20(Bro)/CODE/checkpoints/best_module1_age_aware.pt)):
+To maximize learning representation while evaluating generalization on new data, the **v2** split was introduced:
+- **Training Cohort**: **756 patients** (> 750 images) sampled with stratification from BrainGen_deidentified (ridge.xlsx / ridge_modified.xlsx).
+- **Validation Cohort**: **100 patients** (the remaining held-out portion of BrainGen_deidentified).
+- **Test Cohort**: **130 patients** from the newly added datasets/test_data_mri1/ with ground truth from 	est_groundtruth.xlsx (55 Normal, 75 Abnormal).
+
+---
+
+### 6. Checkpoint Status & Benchmark Results
+
+All models (v1 baselines and new v2 models) are preserved and available in [CODE/checkpoints/](file:///c:/Users/Akash/OneDrive/Desktop/Project/MRI%20Stroke%20(Bro)/CODE/checkpoints):
+
+#### 🌟 v2 Models (Trained on 756 Patients, Evaluated on 	est_data_mri1 130 Patients)
+
+| Model / Checkpoint | Target Split | ROC-AUC | Accuracy | Balanced Acc | Sensitivity | Specificity | F1 Score |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Age-Aware v2**<br>[est_module1_age_aware_v2.pt](file:///c:/Users/Akash/OneDrive/Desktop/Project/MRI%20Stroke%20(Bro)/CODE/checkpoints/best_module1_age_aware_v2.pt) | **Test (	est_data_mri1)**<br>Val (BrainGen Rest) | **0.9045**<br>0.9037 | **82.31%**<br>83.00% | **82.97%**<br>83.60% | **78.67%**<br>73.58% | **87.27%**<br>93.62% | **0.8369**<br>0.8211 |
+| **Age-Independent v2**<br>[est_module1_age_independent_v2.pt](file:///c:/Users/Akash/OneDrive/Desktop/Project/MRI%20Stroke%20(Bro)/CODE/checkpoints/best_module1_age_independent_v2.pt) | **Test (	est_data_mri1)**<br>Val (BrainGen Rest) | **0.9336**<br>0.9208 | **84.62%**<br>84.00% | **83.27%**<br>82.92% | **92.00%**<br>89.66% | **74.55%**<br>76.19% | **0.8734**<br>0.8667 |
+
+#### 📌 v1 Baseline Models (70/15/15 BrainGen Split)
+
+1. **Age-Aware Best Checkpoint** ([est_module1_age_aware.pt](file:///c:/Users/Akash/OneDrive/Desktop/Project/MRI%20Stroke%20(Bro)/CODE/checkpoints/best_module1_age_aware.pt)):
    - **Validation ROC-AUC**: **0.8566** | Accuracy: **76.0%** | Sensitivity: **77.9%** | Specificity: **73.8%**
-2. **Age-Independent Best Checkpoint** ([`best_module1_age_independent.pt`](file:///c:/Users/Akash/OneDrive/Desktop/Project/MRI%20Stroke%20(Bro)/CODE/checkpoints/best_module1_age_independent.pt)):
+2. **Age-Independent Best Checkpoint** ([est_module1_age_independent.pt](file:///c:/Users/Akash/OneDrive/Desktop/Project/MRI%20Stroke%20(Bro)/CODE/checkpoints/best_module1_age_independent.pt)):
    - **Validation ROC-AUC**: **0.8711** | Accuracy: **70.3%** | Sensitivity: **52.7%** | Specificity: **94.4%**

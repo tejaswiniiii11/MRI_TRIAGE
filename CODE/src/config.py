@@ -34,6 +34,24 @@ class Config:
         else os.path.abspath(os.path.join(BASE_DIR, "..", "bridge_modified.xlsx"))
     )
     
+    TEST_DATASET_DIR = os.environ.get(
+        "TEST_DATASET_DIR",
+        os.path.join(BASE_DIR, "data", "test_data_mri1")
+        if os.path.exists(os.path.join(BASE_DIR, "data", "test_data_mri1"))
+        else (
+            os.path.abspath(os.path.join(BASE_DIR, "..", "datasets", "test_data_mri1"))
+            if os.path.exists(os.path.join(BASE_DIR, "..", "datasets", "test_data_mri1"))
+            else os.path.abspath(os.path.join(BASE_DIR, "..", "test_data_mri1"))
+        )
+    )
+
+    TEST_GROUNDTRUTH_EXCEL = os.environ.get(
+        "TEST_GROUNDTRUTH_EXCEL",
+        os.path.join(BASE_DIR, "data", "test_groundtruth.xlsx")
+        if os.path.exists(os.path.join(BASE_DIR, "data", "test_groundtruth.xlsx"))
+        else os.path.abspath(os.path.join(BASE_DIR, "..", "test_groundtruth.xlsx"))
+    )
+    
     # Output Directories
     PROCESSED_DIR = os.path.join(BASE_DIR, "processed")
     EMBEDDINGS_DIR = os.path.join(PROCESSED_DIR, "embeddings")
@@ -52,6 +70,7 @@ class Config:
     TEST_RATIO = 0.15
     NON_SIG_TRAIN_COUNT = 34
     NON_SIG_VAL_COUNT = 7
+    TRAIN_COUNT_V2 = 756  # >750 images from BrainGen for training in v2 split
     
     # Hyperparameters
     BATCH_SIZE = 16

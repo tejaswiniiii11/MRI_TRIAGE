@@ -343,4 +343,8 @@ The model is evaluated using the following comprehensive metrics suite:
 ### Phase 7: Model Serialization & Inference Interface
 - Provide standalone `Module1InferenceEngine` API for one-line predictions from raw DICOM folders or embeddings.
 - Output: [`src/inference.py`](file:///c:/Users/Akash/Downloads/Bro%20project/CODE/src/inference.py).
-
+### Phase 8: Enhanced v2 Training (>750 Images) & External Cohort Benchmark
+- Partitioned dataset into v2 split with **756 training cases** (> 750), **100 validation cases** (held-out BrainGen rest), and **130 external test cases** (datasets/test_data_mri1 with 	est_groundtruth.xlsx).
+- Preserved existing v1 models (est_module1_age_aware.pt and est_module1_age_independent.pt) and serialized new models with _v2 suffix:
+  - checkpoints/best_module1_age_aware_v2.pt: Test ROC-AUC **0.9045**, Test Accuracy **82.31%**, Sensitivity **78.67%**, Specificity **87.27%**.
+  - checkpoints/best_module1_age_independent_v2.pt: Test ROC-AUC **0.9336**, Test Accuracy **84.62%**, Sensitivity **92.00%**, Specificity **74.55%**.
