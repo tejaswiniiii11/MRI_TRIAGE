@@ -1,0 +1,36 @@
+# Datasets and raw archives (do not push datasets to repo)
+datasets/
+BrainGen_deidentified/
+test_data_mri1/
+*.zip
+*.tar
+*.tar.gz
+*.7z
+
+# Intermediate preprocessed embeddings and caches
+CODE/processed/
+processed/
+outputs/
+CODE/outputs/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv/
+
+# IDE & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+.ipynb_checkpoints/

@@ -1,0 +1,19 @@
+# Deep Learning & Computer Vision (PyTorch installed via Dockerfile CUDA index)
+timm>=0.9.0
+opencv-python-headless>=4.8.0
+Pillow>=10.0.0
+scipy>=1.10.0
+
+# Medical Imaging Libraries
+pydicom>=2.4.0
+nibabel>=5.0.0
+
+# Data Analysis & Excel Processing
+pandas>=2.0.0
+openpyxl>=3.1.0
+scikit-learn>=1.3.0
+matplotlib>=3.7.0
+
+# Utilities
+tqdm>=4.65.0
+pyyaml>=6.0.0

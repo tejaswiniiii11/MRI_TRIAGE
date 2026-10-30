@@ -1,0 +1,29 @@
+# Python cache & build outputs
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv/
+
+# IDE & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Project outputs & intermediate embeddings
+processed/
+outputs/
+*.log
+*.tmp
+pdf_dump.txt
+pdf1_dump.txt
+pdf2_dump.txt
+pdf3_dump.txt
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/

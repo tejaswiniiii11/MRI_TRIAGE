@@ -1,0 +1,153 @@
+=== Brain_MRI_Module1_Dataset_and_Modeling_Guide.pdf ===
+--- Page 1 ---
+Brain MRI Module 1
+Dataset & Modeling Guide
+Ground-truth columns, age-aware vs age-independent ablations, split strategy, and class-imbalance handling
+1. Final Ground-Truth Sheet: Column Meaning
+ ANON_PatientID - Main de-identified patient identifier. Use this to connect each spreadsheet row to the 
+corresponding anonymized patient data. It is a linkage field, not a model input.
+ ANON_StudyInstanceUID - Anonymous study-level identifier. Keep it as a second linkage/QC key so the 
+correct MRI study can be verified for each patient. It is not a model input.
+ Classification - Main target label for Module 1. Values are NORMAL or ABNORMAL. This is what the classifier 
+must predict.
+ Age - Patient age at scan. Use as an additional model feature only in the age-aware experiment. Do not use 
+age as a model input in the age-independent experiment.
+ Diagnosis - Reference/helper field describing the radiological finding (for example chronic stroke, acute stroke, 
+tiny lacune, hemorrhage). Do not feed this to the classifier.
+ Significance - Reference/helper field. The value non_significant marks mild age-related cases used to define 
+the two ablation strategies. Do not feed this directly to the model.
+Model leakage rule: ANON_PatientID, ANON_StudyInstanceUID, Diagnosis, and Significance are 
+metadata/helper columns and must not be used as predictive inputs.
+2. Dataset / Ablation 1 - Age-Aware Classification
+Label setup
+ Total patients: 856.
+ Normal: 400.
+ Abnormal: 456.
+ Among the 400 Normal cases, 41 are marked non_significant and represent mild age-related findings that are 
+considered clinically insignificant in the appropriate age context.
+ The 41 non_significant cases are a subset of the Normal class, not a third target class.
+Why age must be used
+In this dataset, some mild findings are labeled according to clinical age context. Therefore, the image alone may 
+not contain all information used to assign the label. Age should be supplied as a separate patient-level feature.
+Recommended age-aware model flow
+ Coronal T2-FLAIR slices
+ DINOv2 slice-level feature extraction
+ Position-aware attention pooling across slices
+ Patient-level MRI embedding
+ Concatenate normalized age
+ Classifier / MLP
+ NORMAL vs ABNORMAL
+Important: Do not pass age into DINOv2. Concatenate normalized age after the patient-level MRI representation 
+has been created.
+--- Page 2 ---
+Age normalization: Use training-set statistics only, e.g. normalized_age = (age - training_mean) / training_std. Do 
+not calculate the mean or standard deviation using validation or test patients.
+3. Handling the 41 non_significant Cases in Ablation 1
+ These 41 cases are especially important because they are where the age-aware strategy is most clinically 
+relevant.
+ Use most of them in training, but retain a small representative subset in validation so the model's handling of 
+these cases can be evaluated.
+ Recommended split for these 41 cases: approximately 34 for training and 7 for validation.
+ Keep the split strictly patient-level. All slices from one patient must stay entirely within one split.
+ Do not split slices independently across training and validation.
+ If a separate final test cohort is maintained, keep it fully unseen by the training and validation process.
+Practical rule: stratify the patient-level split and explicitly check that the validation set contains a few 
+non_significant cases.
+4. Dataset / Ablation 2 - Age-Independent Classification
+ In this version, all 41 non_significant age-related cases are relabeled as ABNORMAL.
+ Normal: 359.
+ Abnormal: 497.
+ Total patients remains 856.
+ Age is not provided to the classifier in this experiment.
+Recommended age-independent model flow
+ Coronal T2-FLAIR slices
+ DINOv2 slice-level feature extraction
+ Position-aware attention pooling
+ Patient-level MRI embedding
+ Classifier / MLP
+ NORMAL vs ABNORMAL
+Interpretation of the comparison: Because both the labeling policy and the model inputs differ between the two 
+experiments, do not claim that any performance difference is caused only by adding age. Frame the comparison as 
+age-aware clinical classification vs age-independent abnormality classification.
+5. Class Imbalance Handling for Ablation 2
+Ablation 2 has 359 Normal vs 497 Abnormal cases. This is a moderate imbalance, not an extreme one. Do not 
+force an artificial 50:50 dataset unless experiments show it is necessary.
+Recommended practices
+ Stratified patient-level splitting - Preserve approximately the same Normal/Abnormal ratio across train and 
+validation/test splits.
+ Training-only data augmentation - Apply augmentation only after the split and only to the training set.
+ Suitable mild augmentations - Small rotations, translations, mild zoom/scale, limited intensity/contrast variation, 
+and carefully chosen noise.
+ Avoid aggressive augmentation - Do not use transformations that may distort or remove subtle abnormalities 
+such as tiny lacunes.
+ Class-weighted loss - Consider weighted cross-entropy/BCE so errors on the minority Normal class receive 
+slightly higher importance.
+--- Page 3 ---
+ Weighted sampling - Optionally use a WeightedRandomSampler so Normal patients are sampled more often 
+during training.
+ Avoid over-correction - Do not combine very aggressive oversampling with very large class weights unless 
+justified by experiments.
+ Validation/test sets - Do not augment or duplicate samples merely to make these sets balanced. Keep them 
+representative of the true data distribution.
+6. Metrics to Report
+ Accuracy
+ Sensitivity / Recall
+ Specificity
+ Precision
+ F1-score
+ ROC-AUC
+ Confusion matrix
+ Balanced accuracy (recommended, especially for the age-independent dataset)
+Do not rely only on accuracy, because the larger Abnormal class can make accuracy look acceptable even 
+when the model performs poorly on Normal cases.
+7. Data Augmentation and Split Order
+Correct order: patient-level split first, then augment training data only.
+1. Start with the 856 patients.
+2. Create patient-level Train / Validation / Test partitions.
+3. Keep every slice from a patient inside the same partition.
+4. Apply augmentation only to the training partition.
+5. Never augment the validation or test sets.
+Why this matters: Augmenting before splitting can place near-duplicate images from the same patient in different 
+splits, creating data leakage.
+8. Summary of the Two Experiments
+Item Ablation 1: Age-Aware Ablation 2: Age-Independent
+Total patients 856 856
+Normal 400 359
+Abnormal 456 497
+non_significant cases 41 retained as Normal 41 relabeled Abnormal
+Age supplied to classifier? Yes No
+MRI sequence Coronal T2-FLAIR Coronal T2-FLAIR
+Image encoder DINOv2 DINOv2
+Patient aggregation Position-aware attention Position-aware attention
+Target NORMAL / ABNORMAL NORMAL / ABNORMAL
+Imbalance handling Mostly stratification; no aggressive 
+balancing needed
+Stratification + augmentation + class 
+weighting/weighted sampling if useful
+9. What Is Actually Fed to the Model
+Ablation 1 - Age-Aware
+ Model inputs: MRI + normalized Age.
+ Target: Classification.
+--- Page 4 ---
+ Not model inputs: ANON_PatientID, ANON_StudyInstanceUID, Diagnosis, Significance.
+Ablation 2 - Age-Independent
+ Model input: MRI only.
+ Target: Classification.
+ Not model inputs: Age, ANON_PatientID, ANON_StudyInstanceUID, Diagnosis, Significance.
+Use of helper columns: Diagnosis and Significance should be retained for error analysis. For example, after 
+inference, the team can check whether failures are concentrated in tiny lacunes, chronic stroke, hemorrhage, or 
+age-related minimal changes.
+10. Team Handoff Checklist
+ Match spreadsheet rows to the anonymized DICOM data using ANON_PatientID, with 
+ANON_StudyInstanceUID available as an additional QC key.
+ Use Classification as the only target label.
+ For Ablation 1, feed normalized Age after the patient-level MRI embedding.
+ For Ablation 2, do not feed Age.
+ Keep the split patient-level; never split slices from the same patient across partitions.
+ Use approximately 34 of the 41 non_significant cases for training and 7 for validation in the age-aware setup.
+ Apply augmentation only to the training set.
+ For Ablation 2, address the 359 vs 497 imbalance using stratification first, then class weights / weighted 
+sampling / moderate augmentation as needed.
+ Evaluate with sensitivity, specificity, F1, ROC-AUC, confusion matrix, and balanced accuracy in addition to 
+accuracy.
+ Use Diagnosis and Significance only for reference and downstream error analysis.

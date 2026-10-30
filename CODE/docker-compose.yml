@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  brain-mri-module1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: brain_mri_module1_app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      # Mount parent dataset directory into /app/data
+      - ../BrainGen_deidentified:/app/data/BrainGen_deidentified:ro
+      - ../bridge.xlsx:/app/data/bridge.xlsx:ro
+      - ../bridge_modified.xlsx:/app/data/bridge_modified.xlsx:ro
+      # Output directories for cached embeddings, checkpoints, and logs
+      - ./processed:/app/processed
+      - ./checkpoints:/app/checkpoints
+      - ./outputs:/app/outputs
+      # Source code live mount for interactive development
+      - .:/app
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    stdin_open: true
+    tty: true
+    command: python -m src.verify_dataset
