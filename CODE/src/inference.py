@@ -90,13 +90,50 @@ class Module1InferenceEngine:
             
         pred_label = "ABNORMAL" if prob >= threshold else "NORMAL"
         attn_weights = alpha.squeeze(0).cpu().numpy().tolist()
+        pos_list = positions.squeeze(0).cpu().numpy().tolist()
+        
+        # Build slice-by-slice detailed breakdown
+        slice_breakdown = [
+            {
+                "slice_index": i,
+                "relative_position": round(pos_list[i], 3),
+                "attention_weight": round(attn_weights[i], 6),
+                "attention_percentage": round(attn_weights[i] * 100.0, 2)
+            }
+            for i in range(len(attn_weights))
+        ]
         
         return {
             "prediction": pred_label,
             "abnormality_probability": prob,
             "confidence": prob if pred_label == "ABNORMAL" else (1.0 - prob),
             "slice_attention_weights": attn_weights,
+            "slice_attention_breakdown": slice_breakdown,
             "ablation": self.ablation
+        }
+
+    def get_patient_slice_attention(self, patient_id, age=None):
+        """
+        Convenience method: Retrieves slice attention percentages and ranks them
+        for any patient by their Patient ID using precomputed embeddings.
+        """
+        emb_path = os.path.join(Config.EMBEDDINGS_DIR, f"{patient_id}.pt")
+        if not os.path.exists(emb_path):
+            raise FileNotFoundError(f"Embedding file not found for patient {patient_id} at {emb_path}")
+            
+        data = torch.load(emb_path, map_location=self.device)
+        res = self.predict_from_embeddings(data['embeddings'], data['positions'], age=age)
+        
+        breakdown = res['slice_attention_breakdown']
+        ranked = sorted(breakdown, key=lambda x: x['attention_percentage'], reverse=True)
+        
+        return {
+            "patient_id": patient_id,
+            "prediction": res["prediction"],
+            "abnormality_probability": round(res["abnormality_probability"], 4),
+            "total_slices": len(breakdown),
+            "slices": breakdown,
+            "top_contributing_slices": ranked
         }
 
     def predict_from_dicom_folder(self, dicom_folder, age=None, threshold=0.5):
