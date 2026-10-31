@@ -15,8 +15,7 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Project outputs & intermediate embeddings
-processed/
+# Project outputs
 outputs/
 *.log
 *.tmp

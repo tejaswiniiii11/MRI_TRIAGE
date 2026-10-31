@@ -7,9 +7,7 @@ test_data_mri1/
 *.tar.gz
 *.7z
 
-# Intermediate preprocessed embeddings and caches
-CODE/processed/
-processed/
+# Outputs
 outputs/
 CODE/outputs/
 
