@@ -23,7 +23,7 @@ def main():
     parser.add_argument("--patient_id", type=str, required=True, help="Patient ID (e.g. 995030-000001)")
     parser.add_argument("--age", type=float, default=None, help="Patient age (optional; if omitted, looked up from bridge.xlsx)")
     parser.add_argument("--top_k", type=int, default=5, help="Number of top slices to highlight (default: 5)")
-    parser.add_argument("--checkpoint", type=str, default="checkpoints/best_module1_age_aware.pt")
+    parser.add_argument("--checkpoint", type=str, default="checkpoints/best_module1_age_aware_v2.pt")
     args = parser.parse_args()
 
     ckpt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.checkpoint)
